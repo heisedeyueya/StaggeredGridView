@@ -50,6 +50,8 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.AbsListView;
+import android.widget.Adapter;
 import android.widget.ListAdapter;
 
 /**
@@ -2655,5 +2657,41 @@ public class StaggeredGridView extends ViewGroup {
 
     public void setDrawSelectorOnTop(boolean mDrawSelectorOnTop) {
         this.mDrawSelectorOnTop = mDrawSelectorOnTop;
+    }
+    
+    public interface OnScrollListener {
+
+        public static final int TOUCH_MODE_IDLE = 0;
+        public static final int TOUCH_MODE_DRAGGING = 1;
+        public static final int TOUCH_MODE_FLINGING = 2;
+        public static final int TOUCH_MODE_DOWN = 3;
+        public static final int TOUCH_MODE_TAP = 4;
+        public static final int TOUCH_MODE_DONE_WAITING = 5;
+        public static final int TOUCH_MODE_REST = 6;
+
+        /**
+         * Callback method to be invoked while the list view or grid view is being scrolled. If the
+         * view is being scrolled, this method will be called before the next frame of the scroll is
+         * rendered. In particular, it will be called before any calls to
+         * {@link Adapter#getView(int, View, ViewGroup)}.
+         *
+         * @param view The view whose scroll state is being reported
+         *
+         * @param scrollState The current scroll state. One of {@link #SCROLL_STATE_IDLE},
+         * {@link #SCROLL_STATE_TOUCH_SCROLL} or {@link #SCROLL_STATE_IDLE}.
+         */
+        public void onScrollStateChanged(StaggeredGridView view, int scrollState);
+
+        /**
+         * Callback method to be invoked when the list or grid has been scrolled. This will be
+         * called after the scroll has completed
+         * @param view The view whose scroll state is being reported
+         * @param firstVisibleItem the index of the first visible cell (ignore if
+         *        visibleItemCount == 0)
+         * @param visibleItemCount the number of visible cells
+         * @param totalItemCount the number of items in the list adaptor
+         */
+        public void onScroll(StaggeredGridView view, int firstVisibleItem, int visibleItemCount,
+                int totalItemCount);
     }
 }
