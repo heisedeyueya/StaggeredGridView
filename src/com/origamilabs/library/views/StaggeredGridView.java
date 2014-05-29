@@ -53,6 +53,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.widget.AbsListView;
 import android.widget.Adapter;
 import android.widget.ListAdapter;
+import android.widget.ListView;
 
 /**
  * ListView and GridView just not complex enough? Try StaggeredGridView!
@@ -229,6 +230,7 @@ public class StaggeredGridView extends ViewGroup {
      * Rectangle used for hit testing children
      */
     private Rect mTouchFrame;
+    private OnScrollListener mOnScrollListner = null;
 
     private static final class LayoutRecord {
         public int column;
@@ -402,7 +404,7 @@ public class StaggeredGridView extends ViewGroup {
             mTouchRemainderY = 0;
             if (mTouchMode == TOUCH_MODE_FLINGING) {
                 // Catch!
-                mTouchMode = TOUCH_MODE_DRAGGING;
+                setTouchMode(TOUCH_MODE_DRAGGING);
                 return true;
             }
             break;
@@ -421,7 +423,7 @@ public class StaggeredGridView extends ViewGroup {
             mTouchRemainderY = dy - deltaY;
 
             if (Math.abs(dy) > mTouchSlop) {
-                mTouchMode = TOUCH_MODE_DRAGGING;
+                setTouchMode(TOUCH_MODE_DRAGGING);
                 return true;
             }
         }
@@ -474,7 +476,7 @@ public class StaggeredGridView extends ViewGroup {
 
             if (mTouchMode != TOUCH_MODE_FLINGING && !mDataChanged && motionPosition >= 0
                     && mAdapter != null && mAdapter.isEnabled(motionPosition)) {
-                mTouchMode = TOUCH_MODE_DOWN;
+                setTouchMode(TOUCH_MODE_DOWN);
 
                 mBeginClick = true;
 
@@ -504,7 +506,7 @@ public class StaggeredGridView extends ViewGroup {
             mTouchRemainderY = dy - deltaY;
 
             if (Math.abs(dy) > mTouchSlop) {
-                mTouchMode = TOUCH_MODE_DRAGGING;
+                setTouchMode(TOUCH_MODE_DRAGGING);
             }
 
             if (mTouchMode == TOUCH_MODE_DRAGGING) {
@@ -521,7 +523,7 @@ public class StaggeredGridView extends ViewGroup {
             break;
 
         case MotionEvent.ACTION_CANCEL:
-            mTouchMode = TOUCH_MODE_IDLE;
+            setTouchMode(TOUCH_MODE_IDLE);
             updateSelectorState();
             setPressed(false);
             View motionView = this.getChildAt(mMotionPosition - mFirstPosition);
@@ -538,7 +540,7 @@ public class StaggeredGridView extends ViewGroup {
                 mBottomEdge.onRelease();
             }
 
-            mTouchMode = TOUCH_MODE_IDLE;
+            setTouchMode(TOUCH_MODE_IDLE);
             break;
 
         case MotionEvent.ACTION_UP: {
@@ -547,20 +549,20 @@ public class StaggeredGridView extends ViewGroup {
             final int prevTouchMode = mTouchMode;
 
             if (Math.abs(velocity) > mFlingVelocity) { // TODO
-                mTouchMode = TOUCH_MODE_FLINGING;
+                setTouchMode(TOUCH_MODE_FLINGING);
                 mScroller.fling(0, 0, 0, (int) velocity, 0, 0,
                         Integer.MIN_VALUE, Integer.MAX_VALUE);
                 mLastTouchY = 0;
                 invalidate();
             } else {
-                mTouchMode = TOUCH_MODE_IDLE;
+                setTouchMode(TOUCH_MODE_IDLE);
             }
 
             if (!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition)) {
                 // TODO : handle
-                mTouchMode = TOUCH_MODE_TAP;
+                setTouchMode(TOUCH_MODE_TAP);
             } else {
-                mTouchMode = TOUCH_MODE_REST;
+                setTouchMode(TOUCH_MODE_REST);
             }
 
             switch (prevTouchMode) {
@@ -592,7 +594,7 @@ public class StaggeredGridView extends ViewGroup {
                         }
 
                         if (!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition)) {
-                            mTouchMode = TOUCH_MODE_TAP;
+                            setTouchMode(TOUCH_MODE_TAP);
 
                             layoutChildren(mDataChanged);
                             child.setPressed(true);
@@ -610,7 +612,7 @@ public class StaggeredGridView extends ViewGroup {
                             mTouchModeReset = new Runnable() {
                                 @Override
                                 public void run() {
-                                    mTouchMode = TOUCH_MODE_REST;
+                                    setTouchMode(TOUCH_MODE_REST);
                                     child.setPressed(false);
                                     setPressed(false);
                                     if (!mDataChanged) {
@@ -621,7 +623,7 @@ public class StaggeredGridView extends ViewGroup {
                             postDelayed(mTouchModeReset, ViewConfiguration.getPressedStateDuration());
 
                         } else {
-                            mTouchMode = TOUCH_MODE_REST;
+                            setTouchMode(TOUCH_MODE_REST);
                         }
                         return true;
                     } else if (!mDataChanged && mAdapter != null && mAdapter.isEnabled(motionPosition)) {
@@ -629,7 +631,7 @@ public class StaggeredGridView extends ViewGroup {
                     }
                 }
 
-                mTouchMode = TOUCH_MODE_REST;
+                setTouchMode(TOUCH_MODE_REST);
             }
 
             mBeginClick = false;
@@ -639,6 +641,13 @@ public class StaggeredGridView extends ViewGroup {
             break;
         }
         return true;
+    }
+
+    private void setTouchMode(int touchMode) {
+        if (mTouchMode != touchMode) {
+            mTouchMode = touchMode;
+            mOnScrollListner.onScrollStateChanged(this, touchMode);
+        }
     }
 
     /**
@@ -695,6 +704,7 @@ public class StaggeredGridView extends ViewGroup {
         } else {
             mSelectorRect.setEmpty();
         }
+        invokeOnItemScrollListener();
 
         return deltaY == 0 || movedBy != 0;
     }
@@ -833,7 +843,7 @@ public class StaggeredGridView extends ViewGroup {
                     }
                     mScroller.abortAnimation();
                 }
-                mTouchMode = TOUCH_MODE_IDLE;
+                setTouchMode(TOUCH_MODE_IDLE);
             }
         }
     }
@@ -2269,7 +2279,7 @@ public class StaggeredGridView extends ViewGroup {
         public void run() {
             if (mTouchMode == TOUCH_MODE_DOWN) {
 
-                mTouchMode = TOUCH_MODE_TAP;
+                setTouchMode(mTouchMode);
                 final View child = getChildAt(mMotionPosition - mFirstPosition);
                 if (child != null && !child.hasFocusable()) {
 
@@ -2302,12 +2312,12 @@ public class StaggeredGridView extends ViewGroup {
                             mPendingCheckForLongPress.rememberWindowAttachCount();
                             postDelayed(mPendingCheckForLongPress, longPressTimeout);
                         } else {
-                            mTouchMode = TOUCH_MODE_DONE_WAITING;
+                            setTouchMode(TOUCH_MODE_DONE_WAITING);
                         }
 
                         postInvalidate();
                     } else {
-                        mTouchMode = TOUCH_MODE_DONE_WAITING;
+                        setTouchMode(TOUCH_MODE_DONE_WAITING);
                     }
                 }
             }
@@ -2327,11 +2337,11 @@ public class StaggeredGridView extends ViewGroup {
                     handled = performLongPress(child, longPressPosition, longPressId);
                 }
                 if (handled) {
-                    mTouchMode = TOUCH_MODE_REST;
+                    setTouchMode(TOUCH_MODE_REST);
                     setPressed(false);
                     child.setPressed(false);
                 } else {
-                    mTouchMode = TOUCH_MODE_DONE_WAITING;
+                    setTouchMode(TOUCH_MODE_DONE_WAITING);
                 }
             }
         }
@@ -2551,6 +2561,18 @@ public class StaggeredGridView extends ViewGroup {
         mOnItemClickListener = listener;
     }
 
+    public void setOnScrollListener(OnScrollListener listener) {
+        mOnScrollListner = listener;
+        invokeOnItemScrollListener();
+    }
+
+    void invokeOnItemScrollListener() {
+        if (mOnScrollListner != null) {
+            mOnScrollListner.onScroll(this, mFirstPosition, getChildCount(), mItemCount, mTouchMode);
+        }
+        onScrollChanged(0, 0, 0, 0); // dummy values, View's implementation does not use these.
+    }
+
     /**
      * @return The callback to be invoked with an item in this AdapterView has been clicked, or null id no callback has
      *         been set.
@@ -2658,7 +2680,7 @@ public class StaggeredGridView extends ViewGroup {
     public void setDrawSelectorOnTop(boolean mDrawSelectorOnTop) {
         this.mDrawSelectorOnTop = mDrawSelectorOnTop;
     }
-    
+
     public interface OnScrollListener {
 
         public static final int TOUCH_MODE_IDLE = 0;
@@ -2670,28 +2692,33 @@ public class StaggeredGridView extends ViewGroup {
         public static final int TOUCH_MODE_REST = 6;
 
         /**
-         * Callback method to be invoked while the list view or grid view is being scrolled. If the
-         * view is being scrolled, this method will be called before the next frame of the scroll is
-         * rendered. In particular, it will be called before any calls to
-         * {@link Adapter#getView(int, View, ViewGroup)}.
-         *
-         * @param view The view whose scroll state is being reported
-         *
-         * @param scrollState The current scroll state. One of {@link #SCROLL_STATE_IDLE},
-         * {@link #SCROLL_STATE_TOUCH_SCROLL} or {@link #SCROLL_STATE_IDLE}.
+         * Callback method to be invoked while the list view or grid view is being scrolled. If the view is being
+         * scrolled, this method will be called before the next frame of the scroll is rendered. In particular, it will
+         * be called before any calls to {@link Adapter#getView(int, View, ViewGroup)}.
+         * 
+         * @param view
+         *            The view whose scroll state is being reported
+         * 
+         * @param scrollState
+         *            The current scroll state. One of {@link #SCROLL_STATE_IDLE}, {@link #SCROLL_STATE_TOUCH_SCROLL} or
+         *            {@link #SCROLL_STATE_IDLE}.
          */
         public void onScrollStateChanged(StaggeredGridView view, int scrollState);
 
         /**
-         * Callback method to be invoked when the list or grid has been scrolled. This will be
-         * called after the scroll has completed
-         * @param view The view whose scroll state is being reported
-         * @param firstVisibleItem the index of the first visible cell (ignore if
-         *        visibleItemCount == 0)
-         * @param visibleItemCount the number of visible cells
-         * @param totalItemCount the number of items in the list adaptor
+         * Callback method to be invoked when the list or grid has been scrolled. This will be called after the scroll
+         * has completed
+         * 
+         * @param view
+         *            The view whose scroll state is being reported
+         * @param firstVisibleItem
+         *            the index of the first visible cell (ignore if visibleItemCount == 0)
+         * @param visibleItemCount
+         *            the number of visible cells
+         * @param totalItemCount
+         *            the number of items in the list adaptor
          */
         public void onScroll(StaggeredGridView view, int firstVisibleItem, int visibleItemCount,
-                int totalItemCount);
+                int totalItemCount, int scrollState);
     }
 }
